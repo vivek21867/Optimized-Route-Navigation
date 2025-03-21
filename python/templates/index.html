@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Skin Disease Detection</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <style>
+        .loader {
+            border-top-color: #3498db;
+            -webkit-animation: spinner 1.5s linear infinite;
+            animation: spinner 1.5s linear infinite;
+        }
+        
+        @-webkit-keyframes spinner {
+            0% { -webkit-transform: rotate(0deg); }
+            100% { -webkit-transform: rotate(360deg); }
+        }
+        
+        @keyframes spinner {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <div class="container mx-auto px-4 py-8 max-w-4xl">
+        <div class="bg-white rounded-lg shadow-lg p-6">
+            <h1 class="text-3xl font-bold text-center text-blue-600 mb-2">Skin Disease Detection</h1>
+            <p class="text-center text-gray-600 mb-8">Upload a skin image to detect potential conditions</p>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Upload Section -->
+                <div class="bg-gray-50 p-6 rounded-lg border border-gray-200">
+                    <h2 class="text-xl font-semibold mb-4">Upload Image</h2>
+                    
+                    <form id="upload-form" enctype="multipart/form-data">
+                        <!-- Model Selection -->
+                        <div class="mb-4">
+                            <label class="block text-gray-700 text-sm font-bold mb-2" for="model-select">
+                                Select Model
+                            </label>
+                            <select id="model-select" name="model_type" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                <option value="resnet152">ResNet-152</option>
+                                <option value="vgg19">VGG-19</option>
+                                <option value="efficientnet">EfficientNet</option>
+                            </select>
+                        </div>
+                        
+                        <!-- Dataset Selection -->
+                        <div class="mb-4">
+                            <label class="block text-gray-700 text-sm font-bold mb-2" for="dataset-select">
+                                Select Dataset
+                            </label>
+                            <select id="dataset-select" name="dataset" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                <option value="ham10000">HAM10000</option>
+                                <option value="isic">ISIC</option>
+                                <option value="fitzpatrick">Fitzpatrick 17k</option>
+                            </select>
+                        </div>
+                        
+                        <!-- File Upload -->
+                        <div class="mb-4">
+                            <label class="block text-gray-700 text-sm font-bold mb-2" for="file-upload">
+                                Upload Image
+                            </label>
+                            <div class="border-2 border-dashed border-gray-300 rounded-md p-4 text-center cursor-pointer hover:bg-gray-100" id="drop-area">
+                                <input type="file" id="file-upload" name="file" accept="image/*" class="hidden" onchange="previewImage(this)">
+                                <div id="upload-prompt">
+                                    <svg class="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48" aria-hidden="true">
+                                        <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                                    </svg>
+                                    <p class="mt-1 text-sm text-gray-600">Click to upload or drag and drop</p>
+                                    <p class="text-xs text-gray-500">PNG, JPG, JPEG up to 10MB</p>
+                                </div>
+                                <div id="image-preview" class="hidden">
+                                    <img id="preview" class="mx-auto max-h-48 max-w-full object-contain" src="#" alt="Image preview">
+                                    <p class="mt-2 text-xs text-gray-500">Click to change image</p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Submit Button -->
+                        <div class="text-center">
+                            <button type="button" id="analyze-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 disabled:opacity-50" disabled>
+                                Analyze Image
+                            </button>
+                        </div>
+                    </form>
+                </div>
+                
+                <!-- Results Section -->
+                <div class="bg-gray-50 p-6 rounded-lg border border-gray-200">
+                    <h2 class="text-xl font-semibold mb-4">Results</h2>
+                    
+                    <!-- Loading State -->
+                    <div id="loading" class="hidden text-center py-12">
+                        <div class="loader mx-auto border-4 h-12 w-12 rounded-full"></div>
+                        <p class="mt-4 text-gray-600">Analyzing image...</p>
+                    </div>
+                    
+                    <!-- Empty State -->
+                    <div id="empty-state" class="text-center py-12">
+                        <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                        </svg>
+                        <p class="mt-2 text-gray-600">Upload an image to see results</p>
+                    </div>
+                    
+                    <!-- Results Content -->
+                    <div id="results" class="hidden">
+                        <div class="mb-4">
+                            <h3 class="font-medium text-gray-700">Predicted Condition</h3>
+                            <div class="mt-2 flex items-center">
+                                <span id="prediction" class="text-lg font-semibold text-blue-600"></span>
+                                <span id="confidence" class="ml-2 text-sm text-gray-500"></span>
+                            </div>
+                        </div>
+                        
+                        <div id="severity-alert" class="mb-4 p-3 rounded-md">
+                            <div class="flex">
+                                <div id="severity-icon" class="flex-shrink-0"></div>
+                                <div class="ml-3">
+                                    <h3 id="severity-title" class="text-sm font-medium"></h3>
+                                    <div id="severity-message" class="mt-2 text-sm"></div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-4">
+                            <h3 class="font-medium text-gray-700">Recommendations</h3>
+                            <ul id="recommendations" class="mt-2 space-y-1 text-sm text-gray-600"></ul>
+                        </div>
+                        
+                        <div class="mt-6 text-xs text-gray-500">
+                            <p><strong>Disclaimer:</strong> This tool is for educational purposes only and should not replace professional medical advice. Always consult with a healthcare professional for proper diagnosis and treatment.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- How It Works Section -->
+            <div class="mt-8">
+                <h2 class="text-xl font-semibold mb-4">How It Works</h2>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div class="bg-white p-4 rounded-lg shadow">
+                        <div class="bg-blue-100 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3">
+                            <span class="text-blue-600 font-bold text-xl">1</span>
+                        </div>
+                        <h3 class="font-medium text-center">Upload Image</h3>
+                        <p class="text-sm text-gray-600 mt-2 text-center">
+                            Upload a clear image of the affected skin area
+                        </p>
+                    </div>
+                    <div class="bg-white p-4 rounded-lg shadow">
+                        <div class="bg-blue-100 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3">
+                            <span class="text-blue-600 font-bold text-xl">2</span>
+                        </div>
+                        <h3 class="font-medium text-center">AI Analysis</h3>
+                        <p class="text-sm text-gray-600 mt-2 text-center">
+                            Our models analyze the image using deep learning
+                        </p>
+                    </div>
+                    <div class="bg-white p-4 rounded-lg shadow">
+                        <div class="bg-blue-100 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3">
+                            <span class="text-blue-600 font-bold text-xl">3</span>
+                        </div>
+                        <h3 class="font-medium text-center">Get Results</h3>
+                        <p class="text-sm text-gray-600 mt-2 text-center">
+                            Receive detailed analysis and potential conditions
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // Preview uploaded image
+        function previewImage(input) {
+            if (input.files && input.files[0]) {
+                const reader = new FileReader();
+                
+                reader.onload = function(e) {
+                    document.getElementById('preview').src = e.target.result;
+                    document.getElementById('upload-prompt').classList.add('hidden');
+                    document.getElementById('image-preview').classList.remove('hidden');
+                    document.getElementById('analyze-btn').disabled = false;
+                }
+                
+                reader.readAsDataURL(input.files[0]);
+            }
+        }
+        
+        // Handle drag and drop
+        const dropArea = document.getElementById('drop-area');
+        const fileInput = document.getElementById('file-upload');
+        
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropArea.addEventListener(eventName, preventDefaults, false);
+        });
+        
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+        
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropArea.addEventListener(eventName, highlight, false);
+        });
+        
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropArea.addEventListener(eventName, unhighlight, false);
+        });
+        
+        function highlight() {
+            dropArea.classList.add('bg-gray-100');
+        }
+        
+        function unhighlight() {
+            dropArea.classList.remove('bg-gray-100');
+        }
+        
+        dropArea.addEventListener('drop', handleDrop, false);
+        
+        function handleDrop(e) {
+            const dt = e.dataTransfer;
+            const files = dt.files;
+            
+            fileInput.files = files;
+            previewImage(fileInput);
+        }
+        
+        // Click on drop area to trigger file input
+        dropArea.addEventListener('click', () => {
+            fileInput.click();
+        });
+        
+        // Handle form submission
+        document.getElementById('analyze-btn').addEventListener('click', async () => {
+            const form = document.getElementById('upload-form');
+            const formData = new FormData(form);
+            
+            // Show loading state
+            document.getElementById('empty-state').classList.add('hidden');
+            document.getElementById('results').classList.add('hidden');
+            document.getElementById('loading').classList.remove('hidden');
+            
+            try {
+                const response = await fetch('/api/predict', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+                
+                // Update results
+                document.getElementById('prediction').textContent = data.prediction;
+                document.getElementById('confidence').textContent = `(${(data.confidence * 100).toFixed(1)}% confidence)`;
+                
+                // Clear previous recommendations
+                const recommendationsList = document.getElementById('recommendations');
+                recommendationsList.innerHTML = '';
+                
+                // Add recommendations
+                data.recommendations.forEach(rec => {
+                    const li = document.createElement('li');
+                    li.className = 'flex items-start';
+                    li.innerHTML = `
+                        <svg class="h-5 w-5 text-blue-500 mr-2 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <span>${rec}</span>
+                    `;
+                    recommendationsList.appendChild(li);
+                });
+                
+                // Set severity level based on condition and confidence
+                const severityAlert = document.getElementById('severity-alert');
+                const severityIcon = document.getElementById('severity-icon');
+                const severityTitle = document.getElementById('severity-title');
+                const severityMessage = document.getElementById('severity-message');
+                
+                if (data.prediction.toLowerCase().includes('melanoma') || 
+                    data.prediction.toLowerCase().includes('carcinoma')) {
+                    // High severity
+                    severityAlert.className = 'mb-4 p-3 rounded-md bg-red-50';
+                    severityIcon.innerHTML = `
+                        <svg class="h-5 w-5 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                        </svg>
+                    `;
+                    severityTitle.className = 'text-sm font-medium text-red-800';
+                    severityTitle.textContent = 'High attention recommended';
+                    severityMessage.className = 'mt-2 text-sm text-red-700';
+                    severityMessage.textContent = 'Please consult a healthcare professional as soon as possible.';
+                } else if (data.confidence > 0.85) {
+                    // Medium severity
+                    severityAlert.className = 'mb-4 p-3 rounded-md bg-yellow-50';
+                    severityIcon.innerHTML = `
+                        <svg class="h-5 w-5 text-yellow-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                    `;
+                    severityTitle.className = 'text-sm font-medium text-yellow-800';
+                    severityTitle.textContent = 'Medium attention recommended';
+                    severityMessage.className = 'mt-2 text-sm text-yellow-700';
+                    severityMessage.textContent = 'Consider scheduling an appointment with a dermatologist.';
+                } else {
+                    // Low severity
+                    severityAlert.className = 'mb-4 p-3 rounded-md bg-green-50';
+                    severityIcon.innerHTML = `
+                        <svg class="h-5 w-5 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                    `;
+                    severityTitle.className = 'text-sm font-medium text-green-800';
+                    severityTitle.textContent = 'Low attention recommended';
+                    severityMessage.className = 'mt-2 text-sm text-green-700';
+                    severityMessage.textContent = 'Monitor the condition and consult a doctor if it changes.';
+                }
+                
+                // Show results
+                document.getElementById('loading').classList.add('hidden');
+                document.getElementById('results').classList.remove('hidden');
+                
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error analyzing image: ' + error.message);
+                
+                // Show empty state again
+                document.getElementById('loading').classList.add('hidden');
+                document.getElementById('empty-state').classList.remove('hidden');
+            }
+        });
+    </script>
+</body>
+</html>
+
